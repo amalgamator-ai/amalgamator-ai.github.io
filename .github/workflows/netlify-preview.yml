@@ -180,7 +180,7 @@ jobs:
       - name: Checkout website
         uses: actions/checkout@v4
         with:
-          repository: amalgamator-ai/amalgamator-ai.github.io
+          repository: amalgamator-ai/amalgamator-ai-github.io
           ref: ${{ steps.ctx.outputs.website_ref != '' && steps.ctx.outputs.website_ref || github.ref }}
           submodules: recursive
           persist-credentials: false
