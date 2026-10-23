@@ -177,17 +177,29 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "caller=${caller_repo}#${caller_pr} docs_ref=${docs_ref:-"(site default)"} alias=${alias}"
 
+      # Website must use github.token. AMALGAMATOR_REPO_TOKEN is scoped to
+      # private amalgamator only — using it here causes 403 on this repo.
       - name: Checkout website
         uses: actions/checkout@v4
         with:
           repository: amalgamator-ai/amalgamator-ai.github.io
           ref: ${{ steps.ctx.outputs.website_ref != '' && steps.ctx.outputs.website_ref || github.ref }}
-          submodules: recursive
+          submodules: false
           persist-credentials: false
-          # Private amalgamator submodule: PAT on this repo, or caller github.token via workflow_call.
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
+          token: ${{ github.token }}
 
-      - name: Checkout amalgamator docs
+      - name: Detect amalgamator access token
+        id: tok
+        env:
+          AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+        run: |
+          if [ -n "${AMALGAMATOR_REPO_TOKEN:-}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout amalgamator docs (cross-repo PR)
         if: steps.ctx.outputs.fetch_docs == 'true'
         uses: actions/checkout@v4
         with:
@@ -200,6 +212,30 @@ jobs:
             docs
           sparse-checkout-cone-mode: true
 
+      - name: Checkout amalgamator (website PR / default docs)
+        if: steps.ctx.outputs.fetch_docs != 'true' && steps.tok.outputs.present == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator
+          path: sources/amalgamator
+          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Sync amalgamator to recorded submodule commit
+        if: steps.ctx.outputs.fetch_docs != 'true' && steps.tok.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
+          if [ -z "${sha}" ]; then
+            echo "No submodule gitlink; leaving checkout at default ref"
+            exit 0
+          fi
+          echo "Checking out amalgamator @ ${sha}"
+          git -C sources/amalgamator fetch --depth 1 origin "${sha}"
+          git -C sources/amalgamator checkout --force "${sha}"
+
+      - name: Setup Hugo
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:

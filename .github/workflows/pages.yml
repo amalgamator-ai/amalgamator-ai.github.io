@@ -16,13 +16,47 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Private amalgamator submodule needs a token with contents:read on that repo.
-      # GITHUB_TOKEN for this website repo cannot see private sibling repos.
+      # Website checkout must use github.token. AMALGAMATOR_REPO_TOKEN only
+      # has access to private amalgamator and will 403 on this repo.
       - uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: false
           persist-credentials: false
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
+
+      - name: Detect amalgamator access token
+        id: tok
+        env:
+          AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+        run: |
+          if [ -n "${AMALGAMATOR_REPO_TOKEN:-}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::AMALGAMATOR_REPO_TOKEN unset; build will use vendor/docs if needed."
+          fi
+
+      - name: Checkout private amalgamator
+        if: steps.tok.outputs.present == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator
+          path: sources/amalgamator
+          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Sync amalgamator to recorded submodule commit
+        if: steps.tok.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
+          if [ -z "${sha}" ]; then
+            echo "No submodule gitlink; leaving checkout at default ref"
+            exit 0
+          fi
+          echo "Checking out amalgamator @ ${sha}"
+          git -C sources/amalgamator fetch --depth 1 origin "${sha}"
+          git -C sources/amalgamator checkout --force "${sha}"
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3

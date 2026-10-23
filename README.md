@@ -34,7 +34,7 @@ Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows
 **Required on this repo** (Settings → Secrets and variables → Actions):
 
 - Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
-- Secret: `AMALGAMATOR_REPO_TOKEN` — required while [amalgamator](https://github.com/amalgamator-ai/amalgamator) is **private**. This website’s `GITHUB_TOKEN` cannot read sibling private repos (submodule + docs checkout). Use a fine-grained PAT (or classic PAT) with **Contents: Read** on `amalgamator-ai/amalgamator`, stored as that secret.
+- Secret: `AMALGAMATOR_REPO_TOKEN` — required while [amalgamator](https://github.com/amalgamator-ai/amalgamator) is **private**. Fine-grained PAT with **Contents: Read** on `amalgamator` only. Used solely to clone that repo; website checkout still uses `GITHUB_TOKEN` (a token scoped only to amalgamator will 403 on this repo).
 - Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
 - Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on amalgamator PRs
 

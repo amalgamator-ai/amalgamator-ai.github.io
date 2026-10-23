@@ -18,7 +18,12 @@ help:
 	@echo "  clean          Remove generated output and cache"
 
 init:
-	GIT_LFS_SKIP_SMUDGE=1 git submodule update --init --recursive sources/amalgamator
+	@if [ -e sources/amalgamator/.git ] || [ -f sources/amalgamator/README.md ]; then \
+		echo "sources/amalgamator already present"; \
+	else \
+		GIT_LFS_SKIP_SMUDGE=1 git submodule update --init --recursive sources/amalgamator \
+			|| echo "Note: submodule init skipped/failed; prepare-docs may use vendor/docs"; \
+	fi
 
 # Prefer DOCS_SOURCE, then submodule docs/, then vendor/docs snapshot.
 prepare-docs: init
