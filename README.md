@@ -25,6 +25,22 @@ make build
 
 Output lands in `public/`. GitHub Pages deploys from `.github/workflows/pages.yml` on push to `main`.
 
+## Pull request previews (Netlify)
+
+Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows/netlify-preview.yml`](.github/workflows/netlify-preview.yml) (not Netlify’s Git auto-build — see [`netlify.toml`](netlify.toml)).
+
+**This repo’s PRs:** open a PR; the workflow builds with `HUGO_BASEURL` for alias `deploy-preview-<n>`, deploys to Netlify, and comments the URL on the PR.
+
+**Required on this repo** (Settings → Secrets and variables → Actions):
+
+- Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
+- Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
+- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on [amalgamator](https://github.com/amalgamator-ai/amalgamator) PRs
+
+In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
+
+**Docs PRs on amalgamator:** this workflow is also a reusable `workflow_call` and listens for `repository_dispatch` type `docs-preview`. Copy the starter from [`examples/amalgamator-docs-netlify-preview.yml`](examples/amalgamator-docs-netlify-preview.yml) into the product repo when ready. Cross-repo runs check out amalgamator `docs/` at the PR SHA (`DOCS_SOURCE`), deploy as `docs-preview-<n>`, and comment on the caller PR.
+
 ## Updating docs
 
 Docs stay authoritative in [amalgamator-ai/amalgamator](https://github.com/amalgamator-ai/amalgamator). `make prepare-docs` mounts `sources/amalgamator/docs` when that tree exists. Until user guides land on `main`, builds fall back to the snapshot in [`vendor/docs`](vendor/docs).

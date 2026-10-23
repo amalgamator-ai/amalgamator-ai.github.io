@@ -1,0 +1,289 @@
+# Netlify Deploy Previews for:
+#   1) pull requests on this website repo
+#   2) reusable workflow_call / repository_dispatch / workflow_dispatch from
+#      amalgamator when docs/ change (comments the preview URL on the caller PR)
+#
+# Caller example (amalgamator-ai/amalgamator) — preferred when that repo holds
+# Netlify secrets or can pass them:
+#
+#   jobs:
+#     docs-preview:
+#       if: contains(github.event.pull_request.changed_files, ...) # or paths filter
+#       uses: amalgamator-ai/amalgamator-ai.github.io/.github/workflows/netlify-preview.yml@main
+#       with:
+#         caller_repo: ${{ github.repository }}
+#         caller_pr: ${{ github.event.pull_request.number }}
+#         docs_ref: ${{ github.event.pull_request.head.sha }}
+#       secrets:
+#         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+#         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+#
+# Alternative when Netlify secrets stay only on this website repo: from
+# amalgamator, repository_dispatch event-type `docs-preview` with client_payload
+# { "caller_repo", "caller_pr", "docs_ref" } using a PAT that can trigger Actions
+# here. Set secret CROSS_REPO_COMMENT_TOKEN on this repo (PR write on amalgamator)
+# so the preview URL can be posted back.
+
+name: Netlify Preview
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      caller_repo:
+        description: "owner/repo to comment on (empty = this repo only)"
+        required: false
+        type: string
+        default: ""
+      caller_pr:
+        description: "PR number to comment on"
+        required: false
+        type: string
+        default: ""
+      docs_ref:
+        description: "amalgamator git ref/SHA whose docs/ to build"
+        required: false
+        type: string
+        default: ""
+      website_ref:
+        description: "website git ref to build against (default: this run ref)"
+        required: false
+        type: string
+        default: ""
+  workflow_call:
+    inputs:
+      caller_repo:
+        description: "owner/repo of the PR to comment on"
+        required: true
+        type: string
+      caller_pr:
+        description: "PR number to comment on"
+        required: true
+        type: string
+      docs_ref:
+        description: "amalgamator git ref/SHA whose docs/ to build"
+        required: true
+        type: string
+      website_ref:
+        description: "website git ref (default main)"
+        required: false
+        type: string
+        default: "main"
+    secrets:
+      NETLIFY_AUTH_TOKEN:
+        required: true
+      NETLIFY_SITE_ID:
+        required: true
+      CROSS_REPO_COMMENT_TOKEN:
+        description: "Optional token to comment on caller_repo (defaults to github.token)"
+        required: false
+  repository_dispatch:
+    types: [docs-preview]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: netlify-preview-${{ github.event.pull_request.number || github.event.client_payload.caller_pr || inputs.caller_pr || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    # Fork PRs on this repo do not receive repository secrets.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve preview context
+        id: ctx
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          INPUT_CALLER_REPO: ${{ inputs.caller_repo }}
+          INPUT_CALLER_PR: ${{ inputs.caller_pr }}
+          INPUT_DOCS_REF: ${{ inputs.docs_ref }}
+          INPUT_WEBSITE_REF: ${{ inputs.website_ref }}
+          DISPATCH_CALLER_REPO: ${{ github.event.client_payload.caller_repo }}
+          DISPATCH_CALLER_PR: ${{ github.event.client_payload.caller_pr }}
+          DISPATCH_DOCS_REF: ${{ github.event.client_payload.docs_ref }}
+          DISPATCH_WEBSITE_REF: ${{ github.event.client_payload.website_ref }}
+          DEFAULT_WEBSITE: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          caller_repo=""
+          caller_pr=""
+          docs_ref=""
+          website_ref=""
+          alias_prefix="deploy-preview"
+
+          case "${EVENT_NAME}" in
+            pull_request)
+              caller_repo="${DEFAULT_WEBSITE}"
+              caller_pr="${PR_NUMBER}"
+              alias_prefix="deploy-preview"
+              ;;
+            workflow_call|workflow_dispatch)
+              caller_repo="${INPUT_CALLER_REPO}"
+              caller_pr="${INPUT_CALLER_PR}"
+              docs_ref="${INPUT_DOCS_REF}"
+              website_ref="${INPUT_WEBSITE_REF}"
+              if [ -n "${caller_repo}" ] && [ "${caller_repo}" != "${DEFAULT_WEBSITE}" ]; then
+                alias_prefix="docs-preview"
+              fi
+              ;;
+            repository_dispatch)
+              caller_repo="${DISPATCH_CALLER_REPO}"
+              caller_pr="${DISPATCH_CALLER_PR}"
+              docs_ref="${DISPATCH_DOCS_REF}"
+              website_ref="${DISPATCH_WEBSITE_REF}"
+              alias_prefix="docs-preview"
+              ;;
+          esac
+
+          if [ -z "${caller_pr}" ]; then
+            echo "::error::Missing caller PR number for preview alias and comment."
+            exit 1
+          fi
+          if [ -z "${caller_repo}" ]; then
+            caller_repo="${DEFAULT_WEBSITE}"
+          fi
+          if [ -z "${website_ref}" ]; then
+            if [ "${EVENT_NAME}" = "pull_request" ]; then
+              website_ref=""
+            else
+              website_ref="main"
+            fi
+          fi
+
+          alias="${alias_prefix}-${caller_pr}"
+          {
+            echo "caller_repo=${caller_repo}"
+            echo "caller_pr=${caller_pr}"
+            echo "docs_ref=${docs_ref}"
+            echo "website_ref=${website_ref}"
+            echo "alias=${alias}"
+            echo "fetch_docs=$([ -n "${docs_ref}" ] && echo true || echo false)"
+          } >> "$GITHUB_OUTPUT"
+          echo "caller=${caller_repo}#${caller_pr} docs_ref=${docs_ref:-"(site default)"} alias=${alias}"
+
+      - name: Checkout website
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator-ai.github.io
+          ref: ${{ steps.ctx.outputs.website_ref != '' && steps.ctx.outputs.website_ref || github.ref }}
+          submodules: true
+          persist-credentials: false
+
+      - name: Checkout amalgamator docs
+        if: steps.ctx.outputs.fetch_docs == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator
+          ref: ${{ steps.ctx.outputs.docs_ref }}
+          path: .cache/amalgamator-src
+          persist-credentials: false
+          sparse-checkout: |
+            docs
+          sparse-checkout-cone-mode: true
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: "0.168.0"
+          extended: true
+
+      - name: Resolve preview URL
+        id: preview
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_SITE_NAME: ${{ vars.NETLIFY_SITE_NAME }}
+          ALIAS: ${{ steps.ctx.outputs.alias }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NETLIFY_AUTH_TOKEN:-}" ] || [ -z "${NETLIFY_SITE_ID:-}" ]; then
+            echo "::error::Set secrets NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID."
+            exit 1
+          fi
+          site_name="${NETLIFY_SITE_NAME:-}"
+          if [ -z "$site_name" ]; then
+            site_name="$(npx --yes netlify-cli@23.11.0 api getSite --data "{\"site_id\":\"${NETLIFY_SITE_ID}\"}" | jq -r .name)"
+          fi
+          if [ -z "$site_name" ] || [ "$site_name" = "null" ]; then
+            echo "::error::Could not resolve Netlify site name; set variable NETLIFY_SITE_NAME."
+            exit 1
+          fi
+          base_url="https://${ALIAS}--${site_name}.netlify.app/"
+          {
+            echo "base_url=${base_url}"
+            echo "site_name=${site_name}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Preview base URL: ${base_url}"
+
+      - name: Build site for preview
+        env:
+          HUGO_BASEURL: ${{ steps.preview.outputs.base_url }}
+          DOCS_SOURCE: ${{ steps.ctx.outputs.fetch_docs == 'true' && '.cache/amalgamator-src/docs' || '' }}
+          GIT_LFS_SKIP_SMUDGE: "1"
+        run: make build
+
+      - name: Deploy preview to Netlify
+        id: deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_ALIAS: ${{ steps.ctx.outputs.alias }}
+          CALLER_PR: ${{ steps.ctx.outputs.caller_pr }}
+        run: |
+          set -euo pipefail
+          output="$(npx --yes netlify-cli@23.11.0 deploy \
+            --auth="${NETLIFY_AUTH_TOKEN}" \
+            --site="${NETLIFY_SITE_ID}" \
+            --dir=public \
+            --alias="${NETLIFY_ALIAS}" \
+            --no-build \
+            --message="PR #${CALLER_PR} ${GITHUB_SHA}" \
+            --json)"
+          printf '%s\n' "${output}"
+          deploy_url="$(printf '%s' "${output}" | jq -r '.deploy_url // .ssl_url // .url // empty')"
+          if [ -z "${deploy_url}" ]; then
+            echo "::error::Netlify CLI did not return a deploy URL."
+            exit 1
+          fi
+          echo "deploy_url=${deploy_url}" >> "$GITHUB_OUTPUT"
+          echo "Deployed: ${deploy_url}"
+
+      - name: Comment preview URL on pull request
+        env:
+          DEFAULT_TOKEN: ${{ github.token }}
+          CROSS_REPO_COMMENT_TOKEN: ${{ secrets.CROSS_REPO_COMMENT_TOKEN }}
+          PREVIEW_URL: ${{ steps.deploy.outputs.deploy_url }}
+          BASE_URL: ${{ steps.preview.outputs.base_url }}
+          CALLER_REPO: ${{ steps.ctx.outputs.caller_repo }}
+          CALLER_PR: ${{ steps.ctx.outputs.caller_pr }}
+          DOCS_REF: ${{ steps.ctx.outputs.docs_ref }}
+        run: |
+          set -euo pipefail
+          export GH_TOKEN="${CROSS_REPO_COMMENT_TOKEN:-$DEFAULT_TOKEN}"
+          if [ -n "${DOCS_REF}" ]; then
+            body="$(printf 'Netlify Deploy Preview: %s\n\nDocs ref: `%s`\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${DOCS_REF}" "${BASE_URL}")"
+          else
+            body="$(printf 'Netlify Deploy Preview: %s\n\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${BASE_URL}")"
+          fi
+          existing="$(gh api \
+            "repos/${CALLER_REPO}/issues/${CALLER_PR}/comments" \
+            --jq '.[] | select(.user.type=="Bot" and (.body | startswith("Netlify Deploy Preview:"))) | .id' \
+            | head -n1 || true)"
+          if [ -n "${existing}" ]; then
+            gh api \
+              --method PATCH \
+              "repos/${CALLER_REPO}/issues/comments/${existing}" \
+              -f body="${body}"
+          else
+            gh api \
+              --method POST \
+              "repos/${CALLER_REPO}/issues/${CALLER_PR}/comments" \
+              -f body="${body}"
+          fi
