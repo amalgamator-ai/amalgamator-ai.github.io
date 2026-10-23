@@ -6,6 +6,8 @@ SOURCES_DOCS := sources/amalgamator/docs
 VENDOR_DOCS := vendor/docs
 CACHE_DOCS := .cache/docs
 NAV := data/docs_nav.yaml
+# Optional override for CI (e.g. amalgamator PR checkout of docs/)
+DOCS_SOURCE ?=
 
 help:
 	@echo "Targets:"
@@ -16,25 +18,33 @@ help:
 	@echo "  clean          Remove generated output and cache"
 
 init:
-	GIT_LFS_SKIP_SMUDGE=1 git submodule update --init --recursive sources/amalgamator
+	@if [ -e sources/amalgamator/.git ] || [ -f sources/amalgamator/README.md ]; then \
+		echo "sources/amalgamator already present"; \
+	else \
+		GIT_LFS_SKIP_SMUDGE=1 git submodule update --init --recursive sources/amalgamator \
+			|| echo "Note: submodule init skipped/failed; prepare-docs may use vendor/docs"; \
+	fi
 
-# Prefer submodule docs/ when present; otherwise use vendor/docs snapshot
-# (product docs are not yet on amalgamator main).
+# Prefer DOCS_SOURCE, then submodule docs/, then vendor/docs snapshot.
 prepare-docs: init
 	@test -f "$(NAV)" || (echo "Missing $(NAV)" >&2; exit 1)
-	@if [ -f "$(SOURCES_DOCS)/getting-started.md" ]; then \
+	@if [ -n "$(DOCS_SOURCE)" ] && [ -f "$(DOCS_SOURCE)/getting-started.md" ]; then \
+		SRC="$(DOCS_SOURCE)"; \
+	elif [ -f "$(SOURCES_DOCS)/getting-started.md" ]; then \
 		SRC="$(SOURCES_DOCS)"; \
 	elif [ -f "$(VENDOR_DOCS)/getting-started.md" ]; then \
 		SRC="$(VENDOR_DOCS)"; \
 		echo "Note: using $(VENDOR_DOCS) (submodule has no docs/ yet)"; \
 	else \
-		echo "No docs found in $(SOURCES_DOCS) or $(VENDOR_DOCS)" >&2; exit 1; \
+		echo "No docs found in DOCS_SOURCE=$(DOCS_SOURCE), $(SOURCES_DOCS), or $(VENDOR_DOCS)" >&2; exit 1; \
 	fi; \
+	echo "Preparing docs from $$SRC"; \
 	python3 scripts/prepare_docs.py --source "$$SRC" --dest "$(CACHE_DOCS)" --nav "$(NAV)"
 
 serve: prepare-docs
 	$(HUGO) server -D --disableFastRender
 
+# HUGO_BASEURL env (if set) overrides hugo.toml baseURL for Netlify previews.
 build: prepare-docs
 	$(HUGO) --minify --destination "$(HUGO_DESTINATION)"
 

@@ -1,6 +1,6 @@
 # Amalgamator website
 
-Hugo site for [Amalgamator](https://github.com/amalgamator-ai/amalgamator), published at [amalgamator-ai.github.io](https://amalgamator-ai.github.io/).
+Hugo site for [Amalgamator](https://github.com/amalgamator-ai/amalgamator), published at [amalgamator-ai.github.io](https://amalgamator-ai-github.io/).
 
 Product documentation is sourced from the `amalgamator` git submodule (`sources/amalgamator/docs`). Landing, blog, and community pages are authored in this repository.
 
@@ -24,6 +24,25 @@ make build
 ```
 
 Output lands in `public/`. GitHub Pages deploys from `.github/workflows/pages.yml` on push to `main`.
+
+## Pull request previews (Netlify)
+
+Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows/netlify-preview.yml`](.github/workflows/netlify-preview.yml) (not Netlify’s Git auto-build — see [`netlify.toml`](netlify.toml)).
+
+**This repo’s PRs:** open a PR; the workflow builds with `HUGO_BASEURL` for alias `deploy-preview-<n>`, deploys to Netlify, and comments the URL on the PR.
+
+**Required on this repo** (Settings → Secrets and variables → Actions):
+
+- Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
+- Secret: `AMALGAMATOR_REPO_TOKEN` — required while [amalgamator](https://github.com/amalgamator-ai/amalgamator) is **private**. Fine-grained PAT with **Contents: Read** on `amalgamator` only. Used solely to clone that repo; website checkout still uses `GITHUB_TOKEN` (a token scoped only to amalgamator will 403 on this repo).
+- Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
+- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on amalgamator PRs
+
+When amalgamator calls this workflow via `workflow_call`, pass `AMALGAMATOR_REPO_TOKEN: ${{ github.token }}` so the job can read the private product repo with the caller’s token.
+
+In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
+
+**Docs PRs on amalgamator:** this workflow is also a reusable `workflow_call` and listens for `repository_dispatch` type `docs-preview`. Copy the starter from [`examples/amalgamator-docs-netlify-preview.yml`](examples/amalgamator-docs-netlify-preview.yml) into the product repo when ready. Cross-repo runs check out amalgamator `docs/` at the PR SHA (`DOCS_SOURCE`), deploy as `docs-preview-<n>`, and comment on the caller PR.
 
 ## Updating docs
 

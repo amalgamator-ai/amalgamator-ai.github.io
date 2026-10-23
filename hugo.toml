@@ -1,4 +1,4 @@
-baseURL = "https://amalgamator-ai.github.io/"
+baseURL = "https://amalgamator-ai-github.io/"
 title = "Amalgamator"
 enableGitInfo = false
 disableKinds = ["taxonomy", "term"]
