@@ -1,0 +1,79 @@
+baseURL = "https://amalgamator-ai.github.io/"
+title = "Amalgamator"
+enableGitInfo = false
+disableKinds = ["taxonomy", "term"]
+
+defaultContentLanguage = "en"
+
+[languages]
+  [languages.en]
+    locale = "en-US"
+    weight = 1
+
+[module]
+  [module.hugoVersion]
+    extended = true
+    min = "0.146.0"
+
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+
+  [[module.mounts]]
+    source = ".cache/docs"
+    target = "content/docs"
+
+  [[module.mounts]]
+    source = "static"
+    target = "static"
+
+  [[module.mounts]]
+    source = "layouts"
+    target = "layouts"
+
+  [[module.mounts]]
+    source = "assets"
+    target = "assets"
+
+  [[module.mounts]]
+    source = "data"
+    target = "data"
+
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.highlight]
+  style = "monokai"
+  noClasses = false
+
+[params]
+  description = "LLM-assisted GPU inference analysis and git-first bug-fix backporting — evidence-checked, human-reviewed."
+  github_repo = "https://github.com/amalgamator-ai/amalgamator"
+  github_org = "https://github.com/amalgamator-ai"
+  images = ["images/branding/main-amalgamator-logo.png"]
+
+[[menus.main]]
+  name = "Docs"
+  url = "/docs/"
+  weight = 10
+
+[[menus.main]]
+  name = "Blog"
+  url = "/blog/"
+  weight = 20
+
+[[menus.main]]
+  name = "Community"
+  url = "/community/"
+  weight = 30
+
+[[menus.main]]
+  name = "GitHub"
+  url = "https://github.com/amalgamator-ai/amalgamator"
+  weight = 40
+  [menus.main.params]
+    external = true
+
+[outputs]
+  home = ["HTML", "RSS"]
+  section = ["HTML", "RSS"]

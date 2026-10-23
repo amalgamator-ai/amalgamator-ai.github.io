@@ -1,0 +1,22 @@
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="brand" href="{{ "/" | relURL }}">
+      <img class="brand__mark" src="{{ "images/branding/tiny-amalgamator-logo.png" | relURL }}" alt="" width="32" height="32">
+      <span class="brand__text">The Amalga<span>mator</span></span>
+    </a>
+    <nav aria-label="Primary">
+      <ul class="nav">
+        {{ range site.Menus.main }}
+        <li>
+          <a
+            href="{{ .URL }}"
+            {{ if .Params.external }}target="_blank" rel="noopener noreferrer"{{ end }}
+            {{ if $.IsMenuCurrent "main" . }}aria-current="page"{{ else if $.HasMenuCurrent "main" . }}aria-current="true"{{ end }}
+          >{{ .Name }}{{ if .Params.external }} <span aria-hidden="true">↗</span>{{ end }}</a>
+        </li>
+        {{ end }}
+        <li>{{ partial "theme-toggle.html" . }}</li>
+      </ul>
+    </nav>
+  </div>
+</header>

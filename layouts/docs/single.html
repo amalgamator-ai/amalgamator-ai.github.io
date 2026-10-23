@@ -1,0 +1,21 @@
+{{ define "main" }}
+<div class="docs-layout">
+  {{ partial "docs-nav.html" . }}
+  <article class="docs-article prose">
+    <h1>{{ .Title }}</h1>
+    {{ .Content }}
+    <nav class="docs-pager" aria-label="Docs pagination">
+      <div>
+        {{ with .PrevInSection }}
+        <a href="{{ .RelPermalink }}">← {{ .Title }}</a>
+        {{ end }}
+      </div>
+      <div>
+        {{ with .NextInSection }}
+        <a href="{{ .RelPermalink }}">{{ .Title }} →</a>
+        {{ end }}
+      </div>
+    </nav>
+  </article>
+</div>
+{{ end }}
