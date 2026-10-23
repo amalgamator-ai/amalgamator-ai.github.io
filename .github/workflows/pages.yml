@@ -16,14 +16,26 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Website checkout must use github.token. AMALGAMATOR_REPO_TOKEN only
-      # has access to private amalgamator and will 403 on this repo.
-      - uses: actions/checkout@v4
+      # Default GITHUB_TOKEN — never use AMALGAMATOR_REPO_TOKEN here (that PAT
+      # only reaches private amalgamator and 403s on this repo).
+      - name: Checkout website
+        uses: actions/checkout@v4
         with:
           submodules: false
-          persist-credentials: false
 
-      - name: Detect amalgamator access token
+      - name: Resolve amalgamator submodule SHA
+        id: sub
+        run: |
+          set -euo pipefail
+          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          if [ -n "${sha}" ]; then
+            echo "Recorded submodule SHA: ${sha}"
+          else
+            echo "No submodule gitlink at sources/amalgamator"
+          fi
+
+      - name: Detect AMALGAMATOR_REPO_TOKEN
         id: tok
         env:
           AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
@@ -32,31 +44,29 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::AMALGAMATOR_REPO_TOKEN unset; build will use vendor/docs if needed."
+            echo "::warning::AMALGAMATOR_REPO_TOKEN unset; make build will fall back to vendor/docs."
           fi
 
+      # Checkout at the gitlink SHA in one step (do not fetch afterward —
+      # persist-credentials: false would make a later git fetch 403).
       - name: Checkout private amalgamator
-        if: steps.tok.outputs.present == 'true'
+        if: steps.tok.outputs.present == 'true' && steps.sub.outputs.sha != ''
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator
+          ref: ${{ steps.sub.outputs.sha }}
+          path: sources/amalgamator
+          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+          persist-credentials: false
+
+      - name: Checkout private amalgamator (default branch)
+        if: steps.tok.outputs.present == 'true' && steps.sub.outputs.sha == ''
         uses: actions/checkout@v4
         with:
           repository: amalgamator-ai/amalgamator
           path: sources/amalgamator
           token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
           persist-credentials: false
-          fetch-depth: 0
-
-      - name: Sync amalgamator to recorded submodule commit
-        if: steps.tok.outputs.present == 'true'
-        run: |
-          set -euo pipefail
-          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
-          if [ -z "${sha}" ]; then
-            echo "No submodule gitlink; leaving checkout at default ref"
-            exit 0
-          fi
-          echo "Checking out amalgamator @ ${sha}"
-          git -C sources/amalgamator fetch --depth 1 origin "${sha}"
-          git -C sources/amalgamator checkout --force "${sha}"
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
