@@ -1,0 +1,53 @@
+# Titles and weights injected into prepared product docs.
+# Paths are relative to sources/amalgamator/docs (without .md).
+# Section entries use overview.md (or README) as the section _index.
+
+pages:
+  - path: getting-started
+    title: Getting started
+    weight: 10
+  - path: concepts
+    title: Concepts
+    weight: 20
+  - path: authentication
+    title: Authentication and models
+    weight: 30
+
+  - path: gpu
+    title: GPU performance analysis
+    weight: 40
+    section: true
+  - path: gpu/profiling
+    title: Profiling
+    weight: 20
+  - path: gpu/analysis
+    title: Trace analysis
+    weight: 30
+  - path: gpu/codegen
+    title: Code generation and PRs
+    weight: 40
+
+  - path: backporting
+    title: Bug-fix backporting
+    weight: 50
+    section: true
+  - path: backporting/scanning
+    title: Scanner
+    weight: 20
+  - path: backporting/backporting
+    title: Backport pipeline
+    weight: 30
+
+  - path: reference
+    title: Reference
+    weight: 60
+    section: true
+  - path: reference/cli
+    title: CLI entry points
+    weight: 10
+  - path: reference/artifacts
+    title: Artifacts and outputs
+    weight: 20
+  - path: reference/faq
+    title: FAQ and troubleshooting
+    weight: 30

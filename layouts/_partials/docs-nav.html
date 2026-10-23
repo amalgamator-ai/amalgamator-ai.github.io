@@ -1,0 +1,39 @@
+{{- $nav := hugo.Data.docs_nav.pages -}}
+{{- $current := . -}}
+<nav class="docs-nav" aria-label="Documentation">
+  <p class="docs-nav__title">Guides</p>
+  <ul>
+    {{- range $nav -}}
+      {{- if .section -}}
+        {{- $sectionPath := .path -}}
+        {{- $section := site.GetPage (printf "docs/%s" $sectionPath) -}}
+        <li>
+          {{- if $section -}}
+            <a class="section-label" href="{{ $section.RelPermalink }}" {{ if eq $current.RelPermalink $section.RelPermalink }}aria-current="page"{{ end }}>{{ .title }}</a>
+          {{- else -}}
+            <span class="section-label">{{ .title }}</span>
+          {{- end -}}
+          <ul class="section-children">
+            {{- range $nav -}}
+              {{- if and (hasPrefix .path (printf "%s/" $sectionPath)) (not .section) -}}
+                {{- $page := site.GetPage (printf "docs/%s" .path) -}}
+                {{- if $page -}}
+                <li>
+                  <a href="{{ $page.RelPermalink }}" {{ if eq $current.RelPermalink $page.RelPermalink }}aria-current="page"{{ end }}>{{ .title }}</a>
+                </li>
+                {{- end -}}
+              {{- end -}}
+            {{- end -}}
+          </ul>
+        </li>
+      {{- else if not (strings.Contains .path "/") -}}
+        {{- $page := site.GetPage (printf "docs/%s" .path) -}}
+        {{- if $page -}}
+        <li>
+          <a href="{{ $page.RelPermalink }}" {{ if eq $current.RelPermalink $page.RelPermalink }}aria-current="page"{{ end }}>{{ .title }}</a>
+        </li>
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  </ul>
+</nav>

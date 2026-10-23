@@ -1,0 +1,9 @@
+public/
+resources/
+.cache/
+.hugo_build.lock
+node_modules/
+.DS_Store
+*.swp
+*~
+.vscode/

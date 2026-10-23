@@ -1,0 +1,17 @@
+{{ define "main" }}
+<section class="page">
+  <header>
+    <h1 class="page__title">{{ .Title }}</h1>
+    {{ with .Params.lede }}<p class="page__lede">{{ . }}</p>{{ else }}{{ with .Content }}<div class="page__lede prose">{{ . }}</div>{{ end }}{{ end }}
+  </header>
+  <ul class="post-list">
+    {{ range .Pages }}
+    <li>
+      <p class="post-meta">{{ with .Date }}{{ .Format "January 2, 2006" }}{{ end }}</p>
+      <h2><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
+      {{ with .Summary }}<p>{{ . | plainify | truncate 160 }}</p>{{ end }}
+    </li>
+    {{ end }}
+  </ul>
+</section>
+{{ end }}

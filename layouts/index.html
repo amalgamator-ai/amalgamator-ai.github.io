@@ -1,0 +1,26 @@
+{{ define "main" }}
+<section class="home-hero" aria-labelledby="home-brand">
+  <div class="home-hero__copy">
+    <p id="home-brand" class="home-hero__brand">The Amalga<span>mator</span></p>
+    <h1 class="home-hero__title">{{ .Params.headline | default "Evidence-checked GPU analysis and git-first backporting." }}</h1>
+    <p class="home-hero__lede">{{ .Params.lede | default .Description | default site.Params.description }}</p>
+    <div class="home-hero__actions">
+      <a class="btn btn-primary" href="{{ "docs/getting-started/" | relURL }}">Get started</a>
+      <a class="btn btn-ghost" href="{{ site.Params.github_repo }}" target="_blank" rel="noopener noreferrer">View on GitHub <span aria-hidden="true">↗</span></a>
+    </div>
+  </div>
+  <div class="home-hero__visual">
+    <img
+      src="{{ "images/branding/main-amalgamator-logo.png" | relURL }}"
+      alt="The Amalgamator mascot — a crocodile wired for backporting"
+      width="640"
+      height="640"
+    >
+  </div>
+</section>
+{{ with .Content }}
+<section class="page page--narrow prose">
+  {{ . }}
+</section>
+{{ end }}
+{{ end }}
