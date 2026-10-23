@@ -17,12 +17,18 @@
 #       secrets:
 #         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 #         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+#         AMALGAMATOR_REPO_TOKEN: ${{ github.token }}  # caller can read its own private repo
 #
 # Alternative when Netlify secrets stay only on this website repo: from
 # amalgamator, repository_dispatch event-type `docs-preview` with client_payload
 # { "caller_repo", "caller_pr", "docs_ref" } using a PAT that can trigger Actions
 # here. Set secret CROSS_REPO_COMMENT_TOKEN on this repo (PR write on amalgamator)
 # so the preview URL can be posted back.
+#
+# Because amalgamator is private, this website repo also needs secret
+# AMALGAMATOR_REPO_TOKEN (PAT or fine-grained token with contents:read on
+# amalgamator-ai/amalgamator) for submodule + docs checkouts when the job runs
+# here with this repo's GITHUB_TOKEN.
 
 name: Netlify Preview
 
@@ -74,6 +80,9 @@ on:
         required: true
       NETLIFY_SITE_ID:
         required: true
+      AMALGAMATOR_REPO_TOKEN:
+        description: "Token that can read amalgamator-ai/amalgamator (use github.token when called from that repo)"
+        required: false
       CROSS_REPO_COMMENT_TOKEN:
         description: "Optional token to comment on caller_repo (defaults to github.token)"
         required: false
@@ -173,8 +182,10 @@ jobs:
         with:
           repository: amalgamator-ai/amalgamator-ai.github.io
           ref: ${{ steps.ctx.outputs.website_ref != '' && steps.ctx.outputs.website_ref || github.ref }}
-          submodules: true
+          submodules: recursive
           persist-credentials: false
+          # Private amalgamator submodule: PAT on this repo, or caller github.token via workflow_call.
+          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
 
       - name: Checkout amalgamator docs
         if: steps.ctx.outputs.fetch_docs == 'true'
@@ -184,6 +195,7 @@ jobs:
           ref: ${{ steps.ctx.outputs.docs_ref }}
           path: .cache/amalgamator-src
           persist-credentials: false
+          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
           sparse-checkout: |
             docs
           sparse-checkout-cone-mode: true

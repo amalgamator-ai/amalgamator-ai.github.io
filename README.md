@@ -34,8 +34,11 @@ Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows
 **Required on this repo** (Settings → Secrets and variables → Actions):
 
 - Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
+- Secret: `AMALGAMATOR_REPO_TOKEN` — required while [amalgamator](https://github.com/amalgamator-ai/amalgamator) is **private**. This website’s `GITHUB_TOKEN` cannot read sibling private repos (submodule + docs checkout). Use a fine-grained PAT (or classic PAT) with **Contents: Read** on `amalgamator-ai/amalgamator`, stored as that secret.
 - Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
-- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on [amalgamator](https://github.com/amalgamator-ai/amalgamator) PRs
+- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on amalgamator PRs
+
+When amalgamator calls this workflow via `workflow_call`, pass `AMALGAMATOR_REPO_TOKEN: ${{ github.token }}` so the job can read the private product repo with the caller’s token.
 
 In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
 
