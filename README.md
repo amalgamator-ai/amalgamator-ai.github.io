@@ -34,11 +34,25 @@ Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows
 **Required on this repo** (Settings → Secrets and variables → Actions):
 
 - Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
-- Secret: `AMALGAMATOR_REPO_TOKEN` — required while [amalgamator](https://github.com/amalgamator-ai/amalgamator) is **private**. Fine-grained PAT with **Contents: Read** on `amalgamator` only. Used solely to clone that repo; website checkout still uses `GITHUB_TOKEN` (a token scoped only to amalgamator will 403 on this repo).
 - Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
-- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only needed for `repository_dispatch` previews that must comment on amalgamator PRs
+- Optional variable: `AMALGAMATOR_DOCS_REF` — amalgamator git ref for “latest” docs (default `main`)
+- **Required** (one of):
+  - `AMALGAMATOR_REPO_TOKEN` — fine-grained PAT on **`amalgamator-ai/amalgamator`** with **Contents: Read**. Metadata alone is not enough (`GET /repos/...` can pass while git clone still 403s), or
+  - `AMALGAMATOR_DEPLOY_KEY` — read-only deploy key on `amalgamator` (often simpler)
+- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only for `repository_dispatch` commenting on amalgamator PRs
 
-When amalgamator calls this workflow via `workflow_call`, pass `AMALGAMATOR_REPO_TOKEN: ${{ github.token }}` so the job can read the private product repo with the caller’s token.
+Every Pages/preview build clones amalgamator docs via [`scripts/fetch_amalgamator_docs.sh`](scripts/fetch_amalgamator_docs.sh).
+
+When amalgamator calls this workflow via `workflow_call`, pass `AMALGAMATOR_REPO_TOKEN: ${{ github.token }}`.
+
+**Verify the PAT can read Contents** (must be `200`):
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $AMALGAMATOR_REPO_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  'https://api.github.com/repos/amalgamator-ai/amalgamator/contents/docs?ref=main'
+```
 
 In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
 

@@ -1,34 +1,13 @@
-# Netlify Deploy Previews for:
-#   1) pull requests on this website repo
-#   2) reusable workflow_call / repository_dispatch / workflow_dispatch from
-#      amalgamator when docs/ change (comments the preview URL on the caller PR)
+# Netlify Deploy Previews — always pull docs from private amalgamator.
 #
-# Caller example (amalgamator-ai/amalgamator) — preferred when that repo holds
-# Netlify secrets or can pass them:
+# Token rules:
+#   - Website checkout  → github.token only
+#   - amalgamator docs  → AMALGAMATOR_REPO_TOKEN (Contents:Read, not Metadata-only)
+#       or AMALGAMATOR_DEPLOY_KEY (read-only deploy key on amalgamator)
+#   - From amalgamator workflow_call, pass AMALGAMATOR_REPO_TOKEN: ${{ github.token }}
 #
-#   jobs:
-#     docs-preview:
-#       if: contains(github.event.pull_request.changed_files, ...) # or paths filter
-#       uses: amalgamator-ai/amalgamator-ai-github.io/.github/workflows/netlify-preview.yml@main
-#       with:
-#         caller_repo: ${{ github.repository }}
-#         caller_pr: ${{ github.event.pull_request.number }}
-#         docs_ref: ${{ github.event.pull_request.head.sha }}
-#       secrets:
-#         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-#         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-#         AMALGAMATOR_REPO_TOKEN: ${{ github.token }}  # caller can read its own private repo
-#
-# Alternative when Netlify secrets stay only on this website repo: from
-# amalgamator, repository_dispatch event-type `docs-preview` with client_payload
-# { "caller_repo", "caller_pr", "docs_ref" } using a PAT that can trigger Actions
-# here. Set secret CROSS_REPO_COMMENT_TOKEN on this repo (PR write on amalgamator)
-# so the preview URL can be posted back.
-#
-# Because amalgamator is private, this website repo also needs secret
-# AMALGAMATOR_REPO_TOKEN (PAT or fine-grained token with contents:read on
-# amalgamator-ai/amalgamator) for submodule + docs checkouts when the job runs
-# here with this repo's GITHUB_TOKEN.
+# docs_ref set  → build that amalgamator SHA (product docs PR)
+# docs_ref empty → build vars.AMALGAMATOR_DOCS_REF or main (latest published docs)
 
 name: Netlify Preview
 
@@ -37,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       caller_repo:
-        description: "owner/repo to comment on (empty = this repo only)"
+        description: "owner/repo to comment on (empty = this repo)"
         required: false
         type: string
         default: ""
@@ -47,31 +26,27 @@ on:
         type: string
         default: ""
       docs_ref:
-        description: "amalgamator git ref/SHA whose docs/ to build"
+        description: "amalgamator git ref/SHA whose docs/ to build (empty = latest)"
         required: false
         type: string
         default: ""
       website_ref:
-        description: "website git ref to build against (default: this run ref)"
+        description: "website git ref (default main for remote triggers)"
         required: false
         type: string
         default: ""
   workflow_call:
     inputs:
       caller_repo:
-        description: "owner/repo of the PR to comment on"
         required: true
         type: string
       caller_pr:
-        description: "PR number to comment on"
         required: true
         type: string
       docs_ref:
-        description: "amalgamator git ref/SHA whose docs/ to build"
         required: true
         type: string
       website_ref:
-        description: "website git ref (default main)"
         required: false
         type: string
         default: "main"
@@ -81,10 +56,8 @@ on:
       NETLIFY_SITE_ID:
         required: true
       AMALGAMATOR_REPO_TOKEN:
-        description: "Token that can read amalgamator-ai/amalgamator (use github.token when called from that repo)"
-        required: false
+        required: true
       CROSS_REPO_COMMENT_TOKEN:
-        description: "Optional token to comment on caller_repo (defaults to github.token)"
         required: false
   repository_dispatch:
     types: [docs-preview]
@@ -99,7 +72,6 @@ concurrency:
 
 jobs:
   preview:
-    # Fork PRs on this repo do not receive repository secrets.
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
@@ -118,7 +90,8 @@ jobs:
           DISPATCH_CALLER_PR: ${{ github.event.client_payload.caller_pr }}
           DISPATCH_DOCS_REF: ${{ github.event.client_payload.docs_ref }}
           DISPATCH_WEBSITE_REF: ${{ github.event.client_payload.website_ref }}
-          DEFAULT_WEBSITE: ${{ github.repository }}
+          THIS_REPO: ${{ github.repository }}
+          DEFAULT_DOCS_REF: ${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}
         run: |
           set -euo pipefail
           caller_repo=""
@@ -126,116 +99,89 @@ jobs:
           docs_ref=""
           website_ref=""
           alias_prefix="deploy-preview"
+          remote_website="false"
 
           case "${EVENT_NAME}" in
             pull_request)
-              caller_repo="${DEFAULT_WEBSITE}"
+              caller_repo="${THIS_REPO}"
               caller_pr="${PR_NUMBER}"
-              alias_prefix="deploy-preview"
+              docs_ref="${DEFAULT_DOCS_REF}"
               ;;
-            workflow_call|workflow_dispatch)
+            workflow_call)
               caller_repo="${INPUT_CALLER_REPO}"
               caller_pr="${INPUT_CALLER_PR}"
               docs_ref="${INPUT_DOCS_REF}"
+              website_ref="${INPUT_WEBSITE_REF:-main}"
+              alias_prefix="docs-preview"
+              remote_website="true"
+              ;;
+            workflow_dispatch)
+              caller_repo="${INPUT_CALLER_REPO:-$THIS_REPO}"
+              caller_pr="${INPUT_CALLER_PR}"
+              docs_ref="${INPUT_DOCS_REF:-$DEFAULT_DOCS_REF}"
               website_ref="${INPUT_WEBSITE_REF}"
-              if [ -n "${caller_repo}" ] && [ "${caller_repo}" != "${DEFAULT_WEBSITE}" ]; then
+              if [ "${INPUT_DOCS_REF:-}" != "" ] && [ "${INPUT_CALLER_REPO:-}" != "" ] && [ "${INPUT_CALLER_REPO}" != "${THIS_REPO}" ]; then
                 alias_prefix="docs-preview"
+              fi
+              if [ "${THIS_REPO}" != "amalgamator-ai/amalgamator-ai.github.io" ] || [ -n "${website_ref}" ]; then
+                remote_website="true"
+                website_ref="${website_ref:-main}"
               fi
               ;;
             repository_dispatch)
               caller_repo="${DISPATCH_CALLER_REPO}"
               caller_pr="${DISPATCH_CALLER_PR}"
-              docs_ref="${DISPATCH_DOCS_REF}"
-              website_ref="${DISPATCH_WEBSITE_REF}"
+              docs_ref="${DISPATCH_DOCS_REF:-$DEFAULT_DOCS_REF}"
+              website_ref="${DISPATCH_WEBSITE_REF:-main}"
               alias_prefix="docs-preview"
+              remote_website="true"
               ;;
           esac
 
           if [ -z "${caller_pr}" ]; then
-            echo "::error::Missing caller PR number for preview alias and comment."
+            echo "::error::Missing PR number for preview alias and comment."
             exit 1
           fi
           if [ -z "${caller_repo}" ]; then
-            caller_repo="${DEFAULT_WEBSITE}"
+            caller_repo="${THIS_REPO}"
           fi
-          if [ -z "${website_ref}" ]; then
-            if [ "${EVENT_NAME}" = "pull_request" ]; then
-              website_ref=""
-            else
-              website_ref="main"
-            fi
+          if [ -z "${docs_ref}" ]; then
+            docs_ref="${DEFAULT_DOCS_REF}"
           fi
 
-          alias="${alias_prefix}-${caller_pr}"
           {
             echo "caller_repo=${caller_repo}"
             echo "caller_pr=${caller_pr}"
             echo "docs_ref=${docs_ref}"
             echo "website_ref=${website_ref}"
-            echo "alias=${alias}"
-            echo "fetch_docs=$([ -n "${docs_ref}" ] && echo true || echo false)"
+            echo "alias=${alias_prefix}-${caller_pr}"
+            echo "remote_website=${remote_website}"
           } >> "$GITHUB_OUTPUT"
-          echo "caller=${caller_repo}#${caller_pr} docs_ref=${docs_ref:-"(site default)"} alias=${alias}"
+          echo "caller=${caller_repo}#${caller_pr} docs_ref=${docs_ref} remote_website=${remote_website}"
 
-      # Website must use github.token. AMALGAMATOR_REPO_TOKEN is scoped to
-      # private amalgamator only — using it here causes 403 on this repo.
-      - name: Checkout website
+      - name: Checkout website (this repo)
+        if: steps.ctx.outputs.remote_website != 'true'
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Checkout website (remote trigger)
+        if: steps.ctx.outputs.remote_website == 'true'
         uses: actions/checkout@v4
         with:
           repository: amalgamator-ai/amalgamator-ai.github.io
-          ref: ${{ steps.ctx.outputs.website_ref != '' && steps.ctx.outputs.website_ref || github.ref }}
+          ref: ${{ steps.ctx.outputs.website_ref }}
           submodules: false
-          persist-credentials: false
           token: ${{ github.token }}
 
-      - name: Detect amalgamator access token
-        id: tok
+      - name: Fetch amalgamator docs
         env:
           AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+          AMALGAMATOR_DEPLOY_KEY: ${{ secrets.AMALGAMATOR_DEPLOY_KEY }}
         run: |
-          if [ -n "${AMALGAMATOR_REPO_TOKEN:-}" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
+          chmod +x scripts/fetch_amalgamator_docs.sh
+          scripts/fetch_amalgamator_docs.sh "${{ steps.ctx.outputs.docs_ref }}" .cache/amalgamator-src
 
-      - name: Checkout amalgamator docs (cross-repo PR)
-        if: steps.ctx.outputs.fetch_docs == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: amalgamator-ai/amalgamator
-          ref: ${{ steps.ctx.outputs.docs_ref }}
-          path: .cache/amalgamator-src
-          persist-credentials: false
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
-          sparse-checkout: |
-            docs
-          sparse-checkout-cone-mode: true
-
-      - name: Checkout amalgamator (website PR / default docs)
-        if: steps.ctx.outputs.fetch_docs != 'true' && steps.tok.outputs.present == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: amalgamator-ai/amalgamator
-          path: sources/amalgamator
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Sync amalgamator to recorded submodule commit
-        if: steps.ctx.outputs.fetch_docs != 'true' && steps.tok.outputs.present == 'true'
-        run: |
-          set -euo pipefail
-          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
-          if [ -z "${sha}" ]; then
-            echo "No submodule gitlink; leaving checkout at default ref"
-            exit 0
-          fi
-          echo "Checking out amalgamator @ ${sha}"
-          git -C sources/amalgamator fetch --depth 1 origin "${sha}"
-          git -C sources/amalgamator checkout --force "${sha}"
-
-      - name: Setup Hugo
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
@@ -273,7 +219,7 @@ jobs:
       - name: Build site for preview
         env:
           HUGO_BASEURL: ${{ steps.preview.outputs.base_url }}
-          DOCS_SOURCE: ${{ steps.ctx.outputs.fetch_docs == 'true' && '.cache/amalgamator-src/docs' || '' }}
+          DOCS_SOURCE: .cache/amalgamator-src/docs
           GIT_LFS_SKIP_SMUDGE: "1"
         run: make build
 
@@ -315,11 +261,7 @@ jobs:
         run: |
           set -euo pipefail
           export GH_TOKEN="${CROSS_REPO_COMMENT_TOKEN:-$DEFAULT_TOKEN}"
-          if [ -n "${DOCS_REF}" ]; then
-            body="$(printf 'Netlify Deploy Preview: %s\n\nDocs ref: `%s`\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${DOCS_REF}" "${BASE_URL}")"
-          else
-            body="$(printf 'Netlify Deploy Preview: %s\n\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${BASE_URL}")"
-          fi
+          body="$(printf 'Netlify Deploy Preview: %s\n\nDocs ref: `%s`\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${DOCS_REF}" "${BASE_URL}")"
           existing="$(gh api \
             "repos/${CALLER_REPO}/issues/${CALLER_PR}/comments" \
             --jq '.[] | select(.user.type=="Bot" and (.body | startswith("Netlify Deploy Preview:"))) | .id' \
