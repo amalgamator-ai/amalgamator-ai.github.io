@@ -1,6 +1,9 @@
-# Titles and weights injected into prepared product docs.
-# Paths are relative to sources/amalgamator/docs (without .md).
-# Section entries use overview.md (or README) as the section _index.
+# Titles and weights for the product docs sidebar on amalgamator.ai.
+# Paths are relative to this docs/ directory (without .md).
+# Section entries use overview.md (or README / _index.md) as the section landing page.
+#
+# When you add a guide, update this file in the same PR — the website loads it
+# from the amalgamator docs checkout (no website PR required).
 
 pages:
   - path: getting-started
@@ -51,3 +54,11 @@ pages:
   - path: reference/faq
     title: FAQ and troubleshooting
     weight: 30
+
+  - path: testing
+    title: Testing
+    weight: 70
+    section: true
+  - path: testing/testing
+    title: Testing notes
+    weight: 10

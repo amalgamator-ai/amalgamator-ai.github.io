@@ -5,14 +5,14 @@ HUGO_DESTINATION ?= public
 SOURCES_DOCS := sources/amalgamator/docs
 VENDOR_DOCS := vendor/docs
 CACHE_DOCS := .cache/docs
-NAV := data/docs_nav.yaml
+CACHE_DATA := .cache/data
 # Optional override for CI (e.g. amalgamator PR checkout of docs/)
 DOCS_SOURCE ?=
 
 help:
 	@echo "Targets:"
 	@echo "  init           Initialize amalgamator docs submodule"
-	@echo "  prepare-docs   Copy product docs and inject Hugo front matter"
+	@echo "  prepare-docs   Copy product docs + nav; inject Hugo front matter"
 	@echo "  serve          Prepare docs and run local Hugo server"
 	@echo "  build          Prepare docs and build production site"
 	@echo "  clean          Remove generated output and cache"
@@ -26,8 +26,8 @@ init:
 	fi
 
 # Prefer DOCS_SOURCE, then submodule docs/, then vendor/docs snapshot.
+# Product sidebar nav lives in the docs tree (docs_nav.yaml), not in this repo.
 prepare-docs: init
-	@test -f "$(NAV)" || (echo "Missing $(NAV)" >&2; exit 1)
 	@if [ -n "$(DOCS_SOURCE)" ] && [ -f "$(DOCS_SOURCE)/getting-started.md" ]; then \
 		SRC="$(DOCS_SOURCE)"; \
 	elif [ -f "$(SOURCES_DOCS)/getting-started.md" ]; then \
@@ -38,8 +38,18 @@ prepare-docs: init
 	else \
 		echo "No docs found in DOCS_SOURCE=$(DOCS_SOURCE), $(SOURCES_DOCS), or $(VENDOR_DOCS)" >&2; exit 1; \
 	fi; \
-	echo "Preparing docs from $$SRC"; \
-	python3 scripts/prepare_docs.py --source "$$SRC" --dest "$(CACHE_DOCS)" --nav "$(NAV)"
+	if [ -f "$$SRC/docs_nav.yaml" ]; then \
+		NAV="$$SRC/docs_nav.yaml"; \
+	elif [ -f "$$SRC/docs_nav.yml" ]; then \
+		NAV="$$SRC/docs_nav.yml"; \
+	else \
+		echo "Missing docs_nav.yaml (or .yml) in $$SRC — product docs own the sidebar nav." >&2; \
+		exit 1; \
+	fi; \
+	echo "Preparing docs from $$SRC (nav=$$NAV)"; \
+	mkdir -p "$(CACHE_DATA)"; \
+	cp "$$NAV" "$(CACHE_DATA)/docs_nav.yaml"; \
+	python3 scripts/prepare_docs.py --source "$$SRC" --dest "$(CACHE_DOCS)" --nav "$$NAV"
 
 serve: prepare-docs
 	$(HUGO) server -D --disableFastRender

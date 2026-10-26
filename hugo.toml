@@ -1,4 +1,4 @@
-baseURL = "https://amalgamator-ai-github.io/"
+baseURL = "https://amalgamator.ai/"
 title = "Amalgamator"
 enableGitInfo = false
 disableKinds = ["taxonomy", "term"]
@@ -35,8 +35,14 @@ defaultContentLanguage = "en"
     source = "assets"
     target = "assets"
 
+  # Website-only Hugo data (if any). Product docs sidebar comes from the
+  # amalgamator docs tree via prepare-docs → .cache/data/docs_nav.yaml.
   [[module.mounts]]
     source = "data"
+    target = "data"
+
+  [[module.mounts]]
+    source = ".cache/data"
     target = "data"
 
 [markup.goldmark.renderer]

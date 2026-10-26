@@ -26,19 +26,19 @@ Amalgamator is open source under the Apache 2.0 license. Improvements land throu
     </a>
   </li>
   <li>
-    <a href="https://github.com/amalgamator-ai/amalgamator/blob/main/CONTRIBUTING.md">
+    <a href="/community/contributing/">
       Contributing guide
       <span>How to set up and send changes</span>
     </a>
   </li>
   <li>
-    <a href="https://github.com/amalgamator-ai/amalgamator/blob/main/CODE_OF_CONDUCT.md">
+    <a href="/community/code-of-conduct/">
       Code of conduct
       <span>Expected community standards</span>
     </a>
   </li>
   <li>
-    <a href="https://github.com/amalgamator-ai/amalgamator/blob/main/SECURITY.md">
+    <a href="/community/security/">
       Security policy
       <span>How to report vulnerabilities</span>
     </a>
