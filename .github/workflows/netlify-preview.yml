@@ -236,7 +236,6 @@ jobs:
           git -C sources/amalgamator checkout --force "${sha}"
 
       - name: Setup Hugo
-      - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
         with:
           hugo-version: "0.168.0"
