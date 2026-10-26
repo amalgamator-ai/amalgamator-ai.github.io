@@ -16,57 +16,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Default GITHUB_TOKEN — never use AMALGAMATOR_REPO_TOKEN here (that PAT
-      # only reaches private amalgamator and 403s on this repo).
+      # github.token only — never use AMALGAMATOR_REPO_TOKEN for this repo.
       - name: Checkout website
         uses: actions/checkout@v4
         with:
           submodules: false
 
-      - name: Resolve amalgamator submodule SHA
-        id: sub
-        run: |
-          set -euo pipefail
-          sha="$(git ls-tree HEAD sources/amalgamator | awk '{print $3}')"
-          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-          if [ -n "${sha}" ]; then
-            echo "Recorded submodule SHA: ${sha}"
-          else
-            echo "No submodule gitlink at sources/amalgamator"
-          fi
-
-      - name: Detect AMALGAMATOR_REPO_TOKEN
-        id: tok
+      - name: Fetch amalgamator docs
         env:
           AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
+          AMALGAMATOR_DEPLOY_KEY: ${{ secrets.AMALGAMATOR_DEPLOY_KEY }}
         run: |
-          if [ -n "${AMALGAMATOR_REPO_TOKEN:-}" ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::AMALGAMATOR_REPO_TOKEN unset; make build will fall back to vendor/docs."
-          fi
-
-      # Checkout at the gitlink SHA in one step (do not fetch afterward —
-      # persist-credentials: false would make a later git fetch 403).
-      - name: Checkout private amalgamator
-        if: steps.tok.outputs.present == 'true' && steps.sub.outputs.sha != ''
-        uses: actions/checkout@v4
-        with:
-          repository: amalgamator-ai/amalgamator
-          ref: ${{ steps.sub.outputs.sha }}
-          path: sources/amalgamator
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
-          persist-credentials: false
-
-      - name: Checkout private amalgamator (default branch)
-        if: steps.tok.outputs.present == 'true' && steps.sub.outputs.sha == ''
-        uses: actions/checkout@v4
-        with:
-          repository: amalgamator-ai/amalgamator
-          path: sources/amalgamator
-          token: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
-          persist-credentials: false
+          chmod +x scripts/fetch_amalgamator_docs.sh
+          scripts/fetch_amalgamator_docs.sh "${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}" .cache/amalgamator-src
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
@@ -77,6 +39,7 @@ jobs:
       - name: Build
         env:
           GIT_LFS_SKIP_SMUDGE: "1"
+          DOCS_SOURCE: .cache/amalgamator-src/docs
         run: make build
 
       - uses: actions/upload-pages-artifact@v3
