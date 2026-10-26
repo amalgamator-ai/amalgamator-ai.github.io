@@ -4,8 +4,10 @@
     <h1 class="page__title">{{ .Title }}</h1>
     {{ with .Params.lede }}<p class="page__lede">{{ . }}</p>{{ end }}
   </header>
+  {{ $posts := .Pages.ByDate.Reverse }}
+  {{ if $posts }}
   <ul class="post-list">
-    {{ range .Pages.ByDate.Reverse }}
+    {{ range $posts }}
     <li>
       <p class="post-meta">{{ .Date.Format "January 2, 2006" }}</p>
       <h2><a href="{{ .RelPermalink }}">{{ .Title }}</a></h2>
@@ -13,5 +15,11 @@
     </li>
     {{ end }}
   </ul>
+  {{ else }}
+  <div class="empty-state" role="status">
+    <p class="empty-state__title">No posts yet</p>
+    <p class="empty-state__body">Release notes and project write-ups will show up here. Check the <a href="{{ "docs/" | relURL }}">docs</a> or <a href="{{ "community/" | relURL }}">community</a> pages in the meantime.</p>
+  </div>
+  {{ end }}
 </section>
 {{ end }}

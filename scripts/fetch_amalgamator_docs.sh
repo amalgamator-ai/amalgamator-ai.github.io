@@ -20,15 +20,28 @@ require_docs() {
     ls -la "${DEST}/docs" || true
     exit 1
   fi
+  for f in CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md; do
+    if [ ! -f "${DEST}/${f}" ]; then
+      echo "::error::After clone, ${DEST}/${f} is missing (ref=${REF})."
+      ls -la "${DEST}" || true
+      exit 1
+    fi
+  done
   echo "Docs ready at ${DEST}/docs (ref=${REF})"
+  echo "Community policies ready at ${DEST}/{CONTRIBUTING,CODE_OF_CONDUCT,SECURITY}.md"
 }
 
 fetch_into() {
   local remote_url="$1"
   git -C "${DEST}" init -q
   git -C "${DEST}" remote add origin "${remote_url}"
-  git -C "${DEST}" sparse-checkout init --cone
-  git -C "${DEST}" sparse-checkout set docs
+  # Non-cone so root policy markdown can be included alongside docs/.
+  git -C "${DEST}" sparse-checkout init --no-cone
+  git -C "${DEST}" sparse-checkout set \
+    '/docs/**' \
+    '/CONTRIBUTING.md' \
+    '/CODE_OF_CONDUCT.md' \
+    '/SECURITY.md'
   # Works for branch names and commit SHAs.
   git -C "${DEST}" fetch --depth 1 --filter=blob:none origin "${REF}"
   git -C "${DEST}" checkout --force FETCH_HEAD

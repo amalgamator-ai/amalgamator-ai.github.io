@@ -77,4 +77,7 @@ rsync -a --delete --include='*/' --include='*.md' --exclude='*' \
   /path/to/amalgamator/docs/ vendor/docs/
 ```
 
-Navigation titles and weights live in [`data/docs_nav.yaml`](data/docs_nav.yaml).
+Product docs sidebar titles and weights live in the amalgamator repo at
+[`docs/docs_nav.yaml`](https://github.com/amalgamator-ai/amalgamator/blob/main/docs/docs_nav.yaml).
+`make prepare-docs` copies that file into `.cache/data/` for Hugo. Keep
+[`data/`](data/) for website-only Hugo data, not product doc navigation.

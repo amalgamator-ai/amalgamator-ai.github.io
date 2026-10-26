@@ -547,6 +547,29 @@ pre {
   margin-bottom: 0.5rem;
 }
 
+.empty-state {
+  margin-top: 2rem;
+  padding: 1.75rem 1.25rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  max-width: 36rem;
+}
+
+.empty-state__title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+.empty-state__body {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
 .community-links {
   list-style: none;
   margin: 1.5rem 0 0;

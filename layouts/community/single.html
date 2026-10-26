@@ -1,0 +1,12 @@
+{{ define "main" }}
+<article class="page page--narrow">
+  <header>
+    <p class="post-meta"><a href="{{ "community/" | relURL }}">Community</a></p>
+    <h1 class="page__title">{{ .Title }}</h1>
+    {{ with .Params.lede }}<p class="page__lede">{{ . }}</p>{{ end }}
+  </header>
+  <div class="prose">
+    {{ .Content }}
+  </div>
+</article>
+{{ end }}

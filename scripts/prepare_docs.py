@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Copy amalgamator docs into .cache/docs and inject Hugo front matter."""
+"""Copy amalgamator docs into .cache/docs and inject Hugo front matter.
+
+The sidebar nav file (docs_nav.yaml) is owned by the product docs tree and
+passed via --nav. The Makefile also copies it to .cache/data/ for Hugo.
+"""
 
 from __future__ import annotations
 
@@ -162,6 +166,17 @@ def main() -> None:
         if path.name == "_index.md":
             title = path.parent.name.replace("-", " ").title() or title
         write_page(path, {"title": title, "weight": 100}, text)
+
+    # Ensure every content directory has an _index.md so Hugo publishes the
+    # section (e.g. docs/testing/ with only leaf pages).
+    for directory in sorted({p.parent for p in dest.rglob("*.md")}):
+        if directory == dest:
+            continue
+        index = directory / "_index.md"
+        if index.exists():
+            continue
+        title = directory.name.replace("-", " ").replace("_", " ").title()
+        write_page(index, {"title": title, "weight": 100}, f"# {title}\n")
 
     print(f"Prepared docs → {dest}")
 
