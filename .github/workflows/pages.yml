@@ -4,9 +4,18 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      docs_ref:
+        description: "amalgamator git ref/SHA whose docs/ to publish (empty = latest)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: github-pages
@@ -16,15 +25,48 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve amalgamator docs ref
+        id: docs
+        env:
+          INPUT_REF: ${{ inputs.docs_ref }}
+          DEFAULT_REF: ${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ref="${INPUT_REF:-}"
+          if [ -z "${ref}" ]; then
+            ref="${DEFAULT_REF}"
+          fi
+          remote="false"
+          if [ "${THIS_REPO}" != "amalgamator-ai/amalgamator-ai.github.io" ]; then
+            remote="true"
+          fi
+          {
+            echo "docs_ref=${ref}"
+            echo "remote_website=${remote}"
+          } >> "$GITHUB_OUTPUT"
+          echo "docs_ref=${ref} remote_website=${remote}"
+
+      # Native run on the website repo.
       - name: Checkout website
+        if: steps.docs.outputs.remote_website != 'true'
         uses: actions/checkout@v4
         with:
+          submodules: false
+
+      # workflow_call from amalgamator keeps the caller's github.repository.
+      - name: Checkout website (from amalgamator)
+        if: steps.docs.outputs.remote_website == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: amalgamator-ai/amalgamator-ai.github.io
+          ref: main
           submodules: false
 
       - name: Fetch amalgamator docs
         run: |
           chmod +x scripts/fetch_amalgamator_docs.sh
-          scripts/fetch_amalgamator_docs.sh "${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}" .cache/amalgamator-src
+          scripts/fetch_amalgamator_docs.sh "${{ steps.docs.outputs.docs_ref }}" .cache/amalgamator-src
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@v3
