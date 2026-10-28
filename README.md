@@ -1,19 +1,18 @@
 # Amalgamator website
 
-Hugo site for [Amalgamator](https://github.com/amalgamator-ai/amalgamator), published at [amalgamator-ai.github.io](https://amalgamator-ai-github.io/).
+Hugo site for [Amalgamator](https://github.com/amalgamator-ai/amalgamator), published at [amalgamator.ai](https://amalgamator.ai/).
 
-Product documentation is sourced from the `amalgamator` git submodule (`sources/amalgamator/docs`). Landing, blog, and community pages are authored in this repository.
+Product documentation and community policies (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`) are fetched from the public amalgamator repository. Landing, blog, and community index pages are authored here.
 
 ## Requirements
 
 - [Hugo Extended](https://gohugo.io/installation/) 0.146+ (0.168 recommended)
-- Python 3 (for `make prepare-docs`)
-- Git (submodules)
+- Python 3 (for `make prepare`)
+- Git
 
 ## Build and preview
 
 ```sh
-make init
 make serve
 ```
 
@@ -23,7 +22,9 @@ Open http://localhost:1313/. Production build:
 make build
 ```
 
-Output lands in `public/`. GitHub Pages deploys from `.github/workflows/pages.yml` on push to `main`.
+If the optional `sources/amalgamator` submodule has no `docs/` yet, `make prepare` shallow-fetches public amalgamator `main` into `.cache/amalgamator-src`. Override the ref with `AMALGAMATOR_REF=<ref> make fetch-docs`.
+
+Output lands in `public/`. GitHub Pages deploys from [`.github/workflows/pages.yml`](.github/workflows/pages.yml) on push to `main`.
 
 ## Pull request previews (Netlify)
 
@@ -36,48 +37,19 @@ Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows
 - Secrets: `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`
 - Optional variable: `NETLIFY_SITE_NAME` (looked up via the API when unset)
 - Optional variable: `AMALGAMATOR_DOCS_REF` — amalgamator git ref for “latest” docs (default `main`)
-- **Required** (one of):
-  - `AMALGAMATOR_REPO_TOKEN` — fine-grained PAT on **`amalgamator-ai/amalgamator`** with **Contents: Read**. Metadata alone is not enough (`GET /repos/...` can pass while git clone still 403s), or
-  - `AMALGAMATOR_DEPLOY_KEY` — read-only deploy key on `amalgamator` (often simpler)
-- Optional secret: `CROSS_REPO_COMMENT_TOKEN` — only for `repository_dispatch` commenting on amalgamator PRs
-
-Every Pages/preview build clones amalgamator docs via [`scripts/fetch_amalgamator_docs.sh`](scripts/fetch_amalgamator_docs.sh).
-
-When amalgamator calls this workflow via `workflow_call`, pass `AMALGAMATOR_REPO_TOKEN: ${{ github.token }}`.
-
-**Verify the PAT can read Contents** (must be `200`):
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer $AMALGAMATOR_REPO_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  'https://api.github.com/repos/amalgamator-ai/amalgamator/contents/docs?ref=main'
-```
 
 In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
 
-**Docs PRs on amalgamator:** this workflow is also a reusable `workflow_call` and listens for `repository_dispatch` type `docs-preview`. Copy the starter from [`examples/amalgamator-docs-netlify-preview.yml`](examples/amalgamator-docs-netlify-preview.yml) into the product repo when ready. Cross-repo runs check out amalgamator `docs/` at the PR SHA (`DOCS_SOURCE`), deploy as `docs-preview-<n>`, and comment on the caller PR.
+**Docs PRs on amalgamator:** copy [`examples/amalgamator-docs-netlify-preview.yml`](examples/amalgamator-docs-netlify-preview.yml) into the product repo. It calls this workflow with the PR SHA as `docs_ref`, deploys as `docs-preview-<n>`, and comments on the caller PR. Netlify secrets must also exist on amalgamator (or be org-level).
 
 ## Updating docs
 
-Docs stay authoritative in [amalgamator-ai/amalgamator](https://github.com/amalgamator-ai/amalgamator). `make prepare-docs` mounts `sources/amalgamator/docs` when that tree exists. Until user guides land on `main`, builds fall back to the snapshot in [`vendor/docs`](vendor/docs).
-
-Bump the submodule when product docs are available:
+Docs and sidebar nav (`docs/docs_nav.yaml`) stay authoritative in [amalgamator-ai/amalgamator](https://github.com/amalgamator-ai/amalgamator). CI always fetches that tree; locally you can either:
 
 ```sh
-cd sources/amalgamator && git fetch && git checkout <ref> && cd ../..
-git add sources/amalgamator
-make build
+make fetch-docs                    # .cache/amalgamator-src @ AMALGAMATOR_REF
+# or
+make init && cd sources/amalgamator && git fetch && git checkout <ref>
 ```
 
-Refresh the vendor snapshot from a local product checkout if needed:
-
-```sh
-rsync -a --delete --include='*/' --include='*.md' --exclude='*' \
-  /path/to/amalgamator/docs/ vendor/docs/
-```
-
-Product docs sidebar titles and weights live in the amalgamator repo at
-[`docs/docs_nav.yaml`](https://github.com/amalgamator-ai/amalgamator/blob/main/docs/docs_nav.yaml).
-`make prepare-docs` copies that file into `.cache/data/` for Hugo. Keep
-[`data/`](data/) for website-only Hugo data, not product doc navigation.
+then `make build`.

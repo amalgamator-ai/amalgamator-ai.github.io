@@ -1,18 +1,8 @@
-# Netlify Deploy Previews — always pull docs from amalgamator.
-#
-# Token rules:
-#   - Website checkout  → github.token only
-#   - amalgamator docs  → AMALGAMATOR_REPO_TOKEN (Contents:Read, not Metadata-only)
-#       or AMALGAMATOR_DEPLOY_KEY (read-only deploy key on amalgamator)
-#   - From amalgamator workflow_call, pass AMALGAMATOR_REPO_TOKEN: ${{ github.token }}
-#     (fetch also falls back to github.token if that secret is empty)
-#
-# Cross-repo calls: reusable workflows keep the *caller's* github.event_name
-# (often pull_request). Detect remote website builds via workflow inputs, not
-# EVENT_NAME == workflow_call.
+# Netlify Deploy Previews for website PRs and amalgamator docs PRs.
+# amalgamator is public — docs are shallow-fetched over HTTPS (no tokens).
 #
 # docs_ref set  → build that amalgamator SHA (product docs PR)
-# docs_ref empty → build vars.AMALGAMATOR_DOCS_REF or main (latest published docs)
+# docs_ref empty → build vars.AMALGAMATOR_DOCS_REF or main
 
 name: Netlify Preview
 
@@ -60,19 +50,13 @@ on:
         required: true
       NETLIFY_SITE_ID:
         required: true
-      AMALGAMATOR_REPO_TOKEN:
-        required: true
-      CROSS_REPO_COMMENT_TOKEN:
-        required: false
-  repository_dispatch:
-    types: [docs-preview]
 
 permissions:
   contents: read
   pull-requests: write
 
 concurrency:
-  group: netlify-preview-${{ github.event.pull_request.number || github.event.client_payload.caller_pr || inputs.caller_pr || github.run_id }}
+  group: netlify-preview-${{ github.event.pull_request.number || inputs.caller_pr || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -91,10 +75,6 @@ jobs:
           INPUT_CALLER_PR: ${{ inputs.caller_pr }}
           INPUT_DOCS_REF: ${{ inputs.docs_ref }}
           INPUT_WEBSITE_REF: ${{ inputs.website_ref }}
-          DISPATCH_CALLER_REPO: ${{ github.event.client_payload.caller_repo }}
-          DISPATCH_CALLER_PR: ${{ github.event.client_payload.caller_pr }}
-          DISPATCH_DOCS_REF: ${{ github.event.client_payload.docs_ref }}
-          DISPATCH_WEBSITE_REF: ${{ github.event.client_payload.website_ref }}
           THIS_REPO: ${{ github.repository }}
           DEFAULT_DOCS_REF: ${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}
         run: |
@@ -106,8 +86,9 @@ jobs:
           alias_prefix="deploy-preview"
           remote_website="false"
 
-          # workflow_call inputs are set when amalgamator (or another repo) invokes
-          # this reusable workflow. Native website PRs leave them empty.
+          # workflow_call inputs are set when amalgamator invokes this reusable
+          # workflow. Native website PRs leave them empty. Event name often stays
+          # pull_request for cross-repo calls, so detect via inputs.
           called_with_inputs="false"
           if [ -n "${INPUT_CALLER_REPO:-}" ] && [ -n "${INPUT_CALLER_PR:-}" ]; then
             called_with_inputs="true"
@@ -116,7 +97,6 @@ jobs:
           case "${EVENT_NAME}" in
             pull_request)
               if [ "${called_with_inputs}" = "true" ]; then
-                # Cross-repo workflow_call: event_name stays pull_request.
                 caller_repo="${INPUT_CALLER_REPO}"
                 caller_pr="${INPUT_CALLER_PR}"
                 docs_ref="${INPUT_DOCS_REF}"
@@ -150,14 +130,6 @@ jobs:
                 website_ref="${website_ref:-main}"
               fi
               ;;
-            repository_dispatch)
-              caller_repo="${DISPATCH_CALLER_REPO}"
-              caller_pr="${DISPATCH_CALLER_PR}"
-              docs_ref="${DISPATCH_DOCS_REF:-$DEFAULT_DOCS_REF}"
-              website_ref="${DISPATCH_WEBSITE_REF:-main}"
-              alias_prefix="docs-preview"
-              remote_website="true"
-              ;;
           esac
 
           if [ -z "${caller_pr}" ]; then
@@ -171,8 +143,6 @@ jobs:
             docs_ref="${DEFAULT_DOCS_REF}"
           fi
 
-          # Safety net: jobs always run in the *caller* repo for workflow_call.
-          # If that is not the website, we must check out the website explicitly.
           if [ "${THIS_REPO}" != "amalgamator-ai/amalgamator-ai.github.io" ]; then
             remote_website="true"
             website_ref="${website_ref:-main}"
@@ -199,19 +169,13 @@ jobs:
 
       - name: Checkout website (remote trigger)
         if: steps.ctx.outputs.remote_website == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: amalgamator-ai/amalgamator-ai.github.io
           ref: ${{ steps.ctx.outputs.website_ref }}
           submodules: false
-          token: ${{ github.token }}
 
       - name: Fetch amalgamator docs
-        env:
-          # Prefer an explicit Contents:Read token; fall back to the job token
-          # (correct when amalgamator calls this workflow and passes github.token).
-          AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN || github.token }}
-          AMALGAMATOR_DEPLOY_KEY: ${{ secrets.AMALGAMATOR_DEPLOY_KEY }}
         run: |
           chmod +x scripts/fetch_amalgamator_docs.sh
           scripts/fetch_amalgamator_docs.sh "${{ steps.ctx.outputs.docs_ref }}" .cache/amalgamator-src
@@ -285,8 +249,7 @@ jobs:
 
       - name: Comment preview URL on pull request
         env:
-          DEFAULT_TOKEN: ${{ github.token }}
-          CROSS_REPO_COMMENT_TOKEN: ${{ secrets.CROSS_REPO_COMMENT_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           PREVIEW_URL: ${{ steps.deploy.outputs.deploy_url }}
           BASE_URL: ${{ steps.preview.outputs.base_url }}
           CALLER_REPO: ${{ steps.ctx.outputs.caller_repo }}
@@ -294,7 +257,6 @@ jobs:
           DOCS_REF: ${{ steps.ctx.outputs.docs_ref }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="${CROSS_REPO_COMMENT_TOKEN:-$DEFAULT_TOKEN}"
           body="$(printf 'Netlify Deploy Preview: %s\n\nDocs ref: `%s`\nBuilt with `HUGO_BASEURL=%s`.' "${PREVIEW_URL}" "${DOCS_REF}" "${BASE_URL}")"
           existing="$(gh api \
             "repos/${CALLER_REPO}/issues/${CALLER_PR}/comments" \

@@ -24,6 +24,10 @@ defaultContentLanguage = "en"
     target = "content/docs"
 
   [[module.mounts]]
+    source = ".cache/community"
+    target = "content/community"
+
+  [[module.mounts]]
     source = "static"
     target = "static"
 
@@ -35,12 +39,7 @@ defaultContentLanguage = "en"
     source = "assets"
     target = "assets"
 
-  # Website-only Hugo data (if any). Product docs sidebar comes from the
-  # amalgamator docs tree via prepare-docs → .cache/data/docs_nav.yaml.
-  [[module.mounts]]
-    source = "data"
-    target = "data"
-
+  # Product docs sidebar is copied to .cache/data/docs_nav.yaml by prepare-docs.
   [[module.mounts]]
     source = ".cache/data"
     target = "data"

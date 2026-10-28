@@ -16,16 +16,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # github.token only — never use AMALGAMATOR_REPO_TOKEN for this repo.
       - name: Checkout website
         uses: actions/checkout@v4
         with:
           submodules: false
 
       - name: Fetch amalgamator docs
-        env:
-          AMALGAMATOR_REPO_TOKEN: ${{ secrets.AMALGAMATOR_REPO_TOKEN }}
-          AMALGAMATOR_DEPLOY_KEY: ${{ secrets.AMALGAMATOR_DEPLOY_KEY }}
         run: |
           chmod +x scripts/fetch_amalgamator_docs.sh
           scripts/fetch_amalgamator_docs.sh "${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}" .cache/amalgamator-src
