@@ -40,7 +40,9 @@ Production stays on **GitHub Pages**. PR previews deploy via [`.github/workflows
 
 In the Netlify UI, turn off automatic Deploy Previews / stop builds for the linked GitHub repo so App checks do not fail on skipped builds.
 
-**Docs PRs on amalgamator:** copy [`examples/amalgamator-docs-netlify-preview.yml`](examples/amalgamator-docs-netlify-preview.yml) into the product repo. It calls this workflow with the PR SHA as `docs_ref`, deploys as `docs-preview-<n>`, and comments on the caller PR. Netlify secrets must also exist on amalgamator (or be org-level).
+**Docs PRs on amalgamator:** the product repo’s `Docs Preview` workflow calls this reusable workflow with the PR SHA as `docs_ref`, deploys as `docs-preview-<n>`, and comments on the caller PR. Netlify secrets must exist on amalgamator (or be org-level).
+
+**Docs merges on amalgamator:** amalgamator’s `Docs Publish` workflow calls this repo’s `pages.yml` via `workflow_call` with the merge SHA as `docs_ref` (same reusable-workflow pattern as Netlify previews). No cross-repo dispatch token.
 
 ## Updating docs
 
