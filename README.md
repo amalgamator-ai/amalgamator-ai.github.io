@@ -42,6 +42,9 @@ In the Netlify UI, turn off automatic Deploy Previews / stop builds for the link
 
 **Docs PRs on amalgamator:** the product repo’s `Docs Preview` workflow calls this reusable workflow with the PR SHA as `docs_ref`, deploys as `docs-preview-<n>`, and comments on the caller PR. Netlify secrets must exist on amalgamator (or be org-level).
 
+**Docs merges on amalgamator:** amalgamator’s `Docs Publish` workflow sends `repository_dispatch` type `docs-publish` here; `Publish Pages` rebuilds from that SHA (or `AMALGAMATOR_DOCS_REF` / `main`). Amalgamator needs secret `WEBSITE_DISPATCH_TOKEN` (fine-grained PAT with Contents: Read and write on *this* repo only).
+
+
 **Docs merges on amalgamator:** amalgamator’s `Docs Publish` workflow calls this repo’s `pages.yml` via `workflow_call` with the merge SHA as `docs_ref` (same reusable-workflow pattern as Netlify previews). No cross-repo dispatch token.
 
 ## Updating docs

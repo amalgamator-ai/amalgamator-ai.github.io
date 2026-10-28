@@ -4,18 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      docs_ref:
-        description: "amalgamator git ref/SHA whose docs/ to publish (empty = latest)"
-        required: false
-        type: string
-        default: ""
+  # Fired by amalgamator Docs Publish when docs / policy files land on main.
+  repository_dispatch:
+    types: [docs-publish]
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: github-pages
@@ -25,43 +19,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout website
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
       - name: Resolve amalgamator docs ref
         id: docs
         env:
-          INPUT_REF: ${{ inputs.docs_ref }}
+          DISPATCH_REF: ${{ github.event.client_payload.docs_ref }}
           DEFAULT_REF: ${{ vars.AMALGAMATOR_DOCS_REF || 'main' }}
-          THIS_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          ref="${INPUT_REF:-}"
+          ref="${DISPATCH_REF:-}"
           if [ -z "${ref}" ]; then
             ref="${DEFAULT_REF}"
           fi
-          remote="false"
-          if [ "${THIS_REPO}" != "amalgamator-ai/amalgamator-ai.github.io" ]; then
-            remote="true"
-          fi
-          {
-            echo "docs_ref=${ref}"
-            echo "remote_website=${remote}"
-          } >> "$GITHUB_OUTPUT"
-          echo "docs_ref=${ref} remote_website=${remote}"
-
-      # Native run on the website repo.
-      - name: Checkout website
-        if: steps.docs.outputs.remote_website != 'true'
-        uses: actions/checkout@v4
-        with:
-          submodules: false
-
-      # workflow_call from amalgamator keeps the caller's github.repository.
-      - name: Checkout website (from amalgamator)
-        if: steps.docs.outputs.remote_website == 'true'
-        uses: actions/checkout@v4
-        with:
-          repository: amalgamator-ai/amalgamator-ai.github.io
-          ref: main
-          submodules: false
+          echo "docs_ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "Fetching amalgamator docs at ${ref}"
 
       - name: Fetch amalgamator docs
         run: |
