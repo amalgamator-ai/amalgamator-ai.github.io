@@ -1,5 +1,5 @@
 ---
 title: Amalgamator
-headline: Evidence-checked GPU analysis and git-first backporting.
-lede: Automate the mechanical parts of comparing inference frameworks and porting fixes across branches — then fail closed to a human instead of guessing.
+headline: AI-powered transfer of fixes, features, and performance improvements.
+lede: Port or backport improvements from one codebase to another, across versions, forks, and independent projects..
 ---
